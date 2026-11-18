@@ -1,0 +1,56 @@
+# Version control
+.git
+.gitignore
+.gitattributes
+.github
+
+# Virtual environments
+.venv
+venv
+env
+ENV
+
+# Python artifacts
+**/__pycache__
+**/*.py[cod]
+**/*$py.class
+**/*.egg-info
+.eggs
+build
+dist
+
+# Testing and coverage
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.hypothesis
+.tox
+.nox
+.coverage
+.coverage.*
+htmlcov
+coverage.xml
+*.cover
+
+# Environment files and secrets
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+
+# Local development artifacts
+.vscode
+.idea
+**/*.log
+logs
+tmp
+**/*.sqlite3
+**/*.swp
+.DS_Store
+Thumbs.db
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
