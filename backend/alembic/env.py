@@ -1,49 +1,61 @@
+"""Alembic environment (Orchestrix V2).
+
+The database URL comes from application settings (settings.sync_database_url),
+never from alembic.ini. Run Alembic from backend/ so `.env` is found.
+"""
+
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
+from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
+from app.core.config import settings
+
+# Importing the registry registers every model on Base.metadata.
+from app.database.registry import Base
+
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
-
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-from app.database.base import Base
-from app.models.user import User
+    # Keep alembic.ini's logging setup, but do not disable loggers that
+    # already exist when migrations run inside another process (e.g. tests).
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+_REQUIRED_DRIVER = "postgresql+psycopg"
+
+
+def _resolve_database_url() -> str:
+    """Return the sync URL, failing clearly without ever echoing credentials."""
+    url = settings.sync_database_url
+    try:
+        driver = make_url(url).drivername
+    except (ArgumentError, ValueError):  # ValueError: e.g. a non-numeric port
+        raise RuntimeError(
+            "The database URL (DATABASE_URL / DATABASE_SYNC_URL) is not a valid "
+            "SQLAlchemy URL."
+        ) from None  # `from None`: the original message would contain the URL
+    if driver != _REQUIRED_DRIVER:
+        raise RuntimeError(
+            f"Alembic needs the {_REQUIRED_DRIVER!r} driver but the resolved URL "
+            f"uses {driver!r}. Use a postgresql+asyncpg:// DATABASE_URL, or set "
+            "DATABASE_SYNC_URL to a postgresql+psycopg:// URL."
+        )
+    return url
+
+
+# ConfigParser treats '%' as interpolation syntax; escape it. Reading the
+# option back (get_main_option / get_section) returns the original URL.
+config.set_main_option("sqlalchemy.url", _resolve_database_url().replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
-    url = config.get_main_option("sqlalchemy.url")
+    """Emit migration SQL without connecting to the database."""
     context.configure(
-        url=url,
+        url=config.get_main_option("sqlalchemy.url"),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -54,22 +66,16 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
+    """Run migrations against a live database with a throwaway connection."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        hide_parameters=True,
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()
