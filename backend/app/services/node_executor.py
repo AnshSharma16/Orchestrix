@@ -1,7 +1,11 @@
 from typing import Any
+
 from app.adapters.factory import AdapterFactory
 from app.models.workflow_node import WorkflowNode
-import logging
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class NodeExecutor:
 
@@ -14,9 +18,8 @@ class NodeExecutor:
         logger.info(
             "Node execution started",
             extra={
-                "execution_id": str(execution.id),
-                "node_id": str(current_node.id),
-                "attempt": attempt,
+                "node_id": str(node.id),
+                "node_type": node.node_type,
             },
         )
         adapter = AdapterFactory.get_adapter(

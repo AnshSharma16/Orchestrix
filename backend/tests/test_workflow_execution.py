@@ -1,6 +1,7 @@
 import pytest
 from uuid import uuid4
 
+from app.core.exceptions import AuthorizationError
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workflow import Workflow
@@ -50,7 +51,7 @@ async def test_user_cannot_execute_another_users_workflow(
 
     service = WorkflowExecutionService(db_session)
 
-    with pytest.raises(PermissionError):
+    with pytest.raises(AuthorizationError):
         await service.start_execution(
             workflow.id,
             user_a,
